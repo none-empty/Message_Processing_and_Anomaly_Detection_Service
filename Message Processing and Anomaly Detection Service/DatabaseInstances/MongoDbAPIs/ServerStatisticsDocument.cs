@@ -6,11 +6,11 @@ namespace Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances.Mon
 public class ServerStatisticsDocument
 {
     [BsonId] [BsonRepresentation(BsonType.ObjectId)]
-    private string Id { get; set; }= null!;
+    public string Id { get; set; }= null!;
     public double MemoryUsage { get; set; }
-    private double AvailableMemory { get; set; }
-    private double CpuUsage { get; set; }
-    private DateTime Timestamp { get; set; }
+    public double AvailableMemory { get; set; }
+    public double CpuUsage { get; set; }
+    public DateTime Timestamp { get; set; }
 
     public ServerStatisticsDocument()
     {
