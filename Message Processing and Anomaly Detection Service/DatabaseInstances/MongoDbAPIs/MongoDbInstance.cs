@@ -6,11 +6,11 @@ public class MongoDbInstance : IDatabase
 {
     private readonly IMongoCollection<ServerStatisticsDocument> _statsCollection;
     
-    public MongoDbInstance(IConnectionData connectionData)
+    public MongoDbInstance(IMongoConnectionData mongoConnectionData)
     {
-        var client = new MongoClient(connectionData.ConnectionString);
-        var database = client.GetDatabase(connectionData.DataBaseName);
-        _statsCollection = database.GetCollection<ServerStatisticsDocument>(connectionData.CollectionName);
+        var client = new MongoClient(mongoConnectionData.ConnectionString);
+        var database = client.GetDatabase(mongoConnectionData.DataBaseName);
+        _statsCollection = database.GetCollection<ServerStatisticsDocument>(mongoConnectionData.CollectionName);
     }
     public async Task SaveStatisticsAsync(ServerStatistics stats)
     {
