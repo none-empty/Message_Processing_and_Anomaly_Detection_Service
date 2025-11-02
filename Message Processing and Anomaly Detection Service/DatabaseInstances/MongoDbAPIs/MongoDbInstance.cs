@@ -24,4 +24,20 @@ public class MongoDbInstance : IDatabase
         
         await _statsCollection.InsertOneAsync(statsDocument);
     }
+
+    public async Task<ServerStatistics> GetLast()
+    {
+        var lastEntry = await _statsCollection
+            .Find(_ => true) 
+            .SortByDescending(doc => doc.Id)  
+            .FirstOrDefaultAsync();
+
+
+        return new ServerStatistics(
+            lastEntry.MemoryUsage,
+            lastEntry.AvailableMemory,
+            lastEntry.CpuUsage,
+            lastEntry.Timestamp
+            );
+    }
 }
