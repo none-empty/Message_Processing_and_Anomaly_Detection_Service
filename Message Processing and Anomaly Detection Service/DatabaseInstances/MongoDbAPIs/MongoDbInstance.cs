@@ -14,22 +14,23 @@ public class MongoDbInstance : IDatabase
     }
     public async Task SaveStatisticsAsync(ServerStatistics stats)
     {
-        var statsDocument = new ServerStatisticsDocument(
-            stats.MemoryUsage,
-            stats.AvailableMemory,
-            stats.CpuUsage,
-            stats.Timestamp
-        );
+        var statsDocument = new ServerStatisticsDocument{
+            ServerIdentifier = stats.ServerIdentifier,
+            MemoryUsage = stats.MemoryUsage,
+            AvailableMemory = stats.AvailableMemory,
+            CpuUsage = stats.CpuUsage,
+            Timestamp = stats.Timestamp
+        };
     
         
         await _statsCollection.InsertOneAsync(statsDocument);
     }
 
-    public async Task<ServerStatistics> GetLast()
-    {
+    public async Task<ServerStatistics> GetLast(string serverIdentifier)
+    {  
         var lastEntry = await _statsCollection
-            .Find(_ => true) 
-            .SortByDescending(doc => doc.Id)  
+            .Find(doc => doc.ServerIdentifier.Equals(serverIdentifier))
+            .SortByDescending(doc => doc.Timestamp)
             .FirstOrDefaultAsync();
 
 
@@ -37,7 +38,8 @@ public class MongoDbInstance : IDatabase
             lastEntry.MemoryUsage,
             lastEntry.AvailableMemory,
             lastEntry.CpuUsage,
-            lastEntry.Timestamp
+            lastEntry.Timestamp,
+            lastEntry.ServerIdentifier
             );
     }
 }
