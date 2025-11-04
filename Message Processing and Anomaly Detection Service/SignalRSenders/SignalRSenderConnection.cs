@@ -6,12 +6,14 @@ namespace Message_Processing_and_Anomaly_Detection_Service.SignalRSenders;
 public class SignalRSenderConnection : ISignalRSenderConnection
 {
     private readonly HubConnection _connection;
-    
+    private readonly string _remoteProcedureName;
     public SignalRSenderConnection(IHubConnectionInfo connectionInfo)
     {
          _connection = new HubConnectionBuilder()
             .WithUrl(connectionInfo.Url)
             .Build();
+
+         _remoteProcedureName = connectionInfo.RemoteProcedureName;
     }
 
 
@@ -20,8 +22,8 @@ public class SignalRSenderConnection : ISignalRSenderConnection
         return _connection.StartAsync();
     }
 
-    public Task InvokeAsync(string remoteProcedure, string message)
+    public Task SendAsync(string message)
     {
-        return _connection.InvokeAsync(remoteProcedure, message);
+        return _connection.InvokeAsync(_remoteProcedureName, message);
     }
 }
