@@ -3,4 +3,5 @@ namespace Message_Processing_and_Anomaly_Detection_Service.SignalRSenders.Signal
 public interface IHubConnectionInfo
 {
     public string Url { get; init; }
+    public string RemoteProcedureName { get; init; }
 }
