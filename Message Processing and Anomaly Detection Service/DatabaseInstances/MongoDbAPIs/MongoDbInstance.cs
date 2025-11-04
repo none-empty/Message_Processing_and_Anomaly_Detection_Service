@@ -5,11 +5,10 @@ namespace Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances.Mon
 public class MongoDbInstance : IDatabase
 {
     private readonly IMongoCollection<ServerStatisticsDocument> _statsCollection;
-    
-    public MongoDbInstance(IMongoConnectionData mongoConnectionData)
+     
+    public MongoDbInstance(IMongoConnectionData mongoConnectionData,IMongoClient mongoClient)
     {
-        var client = new MongoClient(mongoConnectionData.ConnectionString);
-        var database = client.GetDatabase(mongoConnectionData.DataBaseName);
+        var database = mongoClient.GetDatabase(mongoConnectionData.DataBaseName);
         _statsCollection = database.GetCollection<ServerStatisticsDocument>(mongoConnectionData.CollectionName);
     }
     public async Task SaveStatisticsAsync(ServerStatistics stats)
