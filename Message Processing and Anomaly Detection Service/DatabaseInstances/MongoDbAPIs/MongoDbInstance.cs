@@ -26,7 +26,7 @@ public class MongoDbInstance : IDatabase
         await _statsCollection.InsertOneAsync(statsDocument);
     }
 
-    public async Task<ServerStatistics> GetLast(string serverIdentifier)
+    public async Task<ServerStatistics> GetLastAsync(string serverIdentifier)
     {  
         var lastEntry = await _statsCollection
             .Find(doc => doc.ServerIdentifier.Equals(serverIdentifier))
