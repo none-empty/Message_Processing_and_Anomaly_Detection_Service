@@ -32,13 +32,12 @@ public class MongoDbInstance : IDatabase
             .SortByDescending(doc => doc.Timestamp)
             .FirstOrDefaultAsync();
 
-
         return new ServerStatistics(
-            lastEntry.MemoryUsage,
-            lastEntry.AvailableMemory,
-            lastEntry.CpuUsage,
-            lastEntry.Timestamp,
-            lastEntry.ServerIdentifier
+            lastEntry?.MemoryUsage??0,
+            lastEntry?.AvailableMemory??0,
+            lastEntry?.CpuUsage??0,
+            lastEntry?.Timestamp?? DateTime.UtcNow,
+            lastEntry?.ServerIdentifier??serverIdentifier
             );
     }
 }
