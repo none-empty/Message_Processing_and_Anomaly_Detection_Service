@@ -1,54 +1,72 @@
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace Message_Processing_and_Anomaly_Detection_Service.RabbitMQReceivers;
 
-public class RabbitMQReceiver : IRabbitMQReceiver
+public class RabbitMQReceiver : IRabbitMQReceiver, IAsyncDisposable
 {
-    public async Task<string> ReceivePayload()
+    private readonly IConnection _connection;
+    private IChannel _channel;
+    private readonly Channel<string> _messageBuffer;
+    private const string QueueName = "server_statistics_queue";
+    public RabbitMQReceiver(IConnection connection)
     {
-        var factory = new ConnectionFactory() 
-        {
-            HostName = Environment.GetEnvironmentVariable("RABBITMQ__HOSTNAME") ?? "localhost",
-            Port = int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ__PORT"), out var port) ? port : 5672,
-            UserName = Environment.GetEnvironmentVariable("RABBITMQ__USERNAME") ?? "guest",
-            Password = Environment.GetEnvironmentVariable("RABBITMQ__PASSWORD") ?? "guest"
-        };
-         
-        using var connection = await factory.CreateConnectionAsync();
-        using var channel = await connection.CreateChannelAsync();
+        this._connection = connection;
 
+        _messageBuffer = Channel.CreateUnbounded<string>(
+            new UnboundedChannelOptions
+            {
+                SingleReader = true,
+                SingleWriter = true
+            });
+       
+    }
 
-        const string queueName = "server_statistics_queue";
+    public async Task StartAsync()
+    {
+        _channel = await _connection.CreateChannelAsync();
 
-        await channel.QueueDeclareAsync(
-            queue: queueName,
+        await _channel.QueueDeclareAsync(
+            queue: QueueName,
             durable: false,
             exclusive: false,
             autoDelete: false,
             arguments: null);
-        
-        var tcs = new TaskCompletionSource<string>();
-        var consumer = new AsyncEventingBasicConsumer(channel);
+
+        var consumer = new AsyncEventingBasicConsumer(_channel);
+
         consumer.ReceivedAsync += async (sender, eventArgs) =>
         {
-            var message = Encoding.UTF8.GetString(eventArgs.Body.ToArray());;
-            tcs.TrySetResult(message);
-            await Task.CompletedTask;
-           await ((AsyncEventingBasicConsumer)sender).Channel.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+            var message = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
+
+            await _messageBuffer.Writer.WriteAsync(message);
+
+            await _channel.BasicAckAsync(eventArgs.DeliveryTag, false);
         };
-        await channel.BasicConsumeAsync(queue: queueName,
+
+        await _channel.BasicConsumeAsync(
+            queue: QueueName,
             autoAck: false,
             consumer: consumer);
-
-        var result = await tcs.Task;
-
-       
-        await channel.CloseAsync();
-        await connection.CloseAsync();
-        return result;
     }
- 
+    
+    public async Task<string> ReceivePayloadAsync()
+    {
+        return await _messageBuffer.Reader.ReadAsync();
+    }
+
+    public void Dispose()
+    {
+        _connection.Dispose();
+        _channel.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _connection.DisposeAsync();
+        await _channel.DisposeAsync();
+    }
 }
