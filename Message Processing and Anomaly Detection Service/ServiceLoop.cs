@@ -25,19 +25,28 @@ public class ServiceLoop
 
     public async Task StartService()
     {
+        await _queueReceiver.StartAsync();
         await _signalRConnection.StartAsync();
         while (_serviceIsRunning)
         {
-            var payload = await _queueReceiver.ReceivePayload();
-            var data = JsonSerializer.Deserialize<ServerStatistics>(payload)!;
-            
-            var prevReading = await _database.GetLastAsync(data.ServerIdentifier);
-            await _database.SaveStatisticsAsync(data);
-            
-            var alerts = _enginesManager.ExecuteEnginesRules(data,prevReading);
+            try
+            {
+                var payload = await _queueReceiver.ReceivePayloadAsync();
+                var data = JsonSerializer.Deserialize<ServerStatistics>(payload)!;
 
-            var alertsSerialized = JsonSerializer.Serialize(alerts);
-            await _signalRConnection.SendAsync(alertsSerialized);
+                var prevReading = await _database.GetLastAsync(data.ServerIdentifier);
+                await _database.SaveStatisticsAsync(data);
+
+                var alerts = _enginesManager.ExecuteEnginesRules(data, prevReading);
+
+                var alertsSerialized = JsonSerializer.Serialize(alerts);
+                await _signalRConnection.SendAsync(alertsSerialized);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
         }
+        
     }
 }
