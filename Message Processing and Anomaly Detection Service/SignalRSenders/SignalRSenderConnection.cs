@@ -11,6 +11,7 @@ public class SignalRSenderConnection : ISignalRSenderConnection
     {
          _connection = new HubConnectionBuilder()
             .WithUrl(connectionInfo.Url)
+            .WithAutomaticReconnect()
             .Build();
 
          _remoteProcedureName = connectionInfo.RemoteProcedureName;
