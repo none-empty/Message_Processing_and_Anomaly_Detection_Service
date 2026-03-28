@@ -1,6 +1,7 @@
 namespace Message_Processing_and_Anomaly_Detection_Service.RabbitMQReceivers;
 
-public interface IRabbitMQReceiver
+public interface IRabbitMQReceiver : IDisposable
 {
-    public Task<string> ReceivePayload();
+    Task<string> ReceivePayloadAsync();
+    Task StartAsync();
 }
