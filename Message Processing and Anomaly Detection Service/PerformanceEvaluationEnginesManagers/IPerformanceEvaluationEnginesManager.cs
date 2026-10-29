@@ -1,0 +1,8 @@
+using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEngines;
+
+namespace Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers;
+
+public interface IPerformanceEvaluationEnginesManager
+{
+    public List<Alert> ExecuteEnginesRules(ServerStatistics currentStats,ServerStatistics prevStats);
+}
