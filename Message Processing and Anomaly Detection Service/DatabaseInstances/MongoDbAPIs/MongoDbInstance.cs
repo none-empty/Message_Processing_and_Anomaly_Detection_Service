@@ -5,11 +5,10 @@ namespace Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances.Mon
 public class MongoDbInstance : IDatabase
 {
     private readonly IMongoCollection<ServerStatisticsDocument> _statsCollection;
-    
-    public MongoDbInstance(IMongoConnectionData mongoConnectionData)
+     
+    public MongoDbInstance(IMongoConnectionData mongoConnectionData,IMongoClient mongoClient)
     {
-        var client = new MongoClient(mongoConnectionData.ConnectionString);
-        var database = client.GetDatabase(mongoConnectionData.DataBaseName);
+        var database = mongoClient.GetDatabase(mongoConnectionData.DataBaseName);
         _statsCollection = database.GetCollection<ServerStatisticsDocument>(mongoConnectionData.CollectionName);
     }
     public async Task SaveStatisticsAsync(ServerStatistics stats)
@@ -26,20 +25,19 @@ public class MongoDbInstance : IDatabase
         await _statsCollection.InsertOneAsync(statsDocument);
     }
 
-    public async Task<ServerStatistics> GetLast(string serverIdentifier)
+    public async Task<ServerStatistics> GetLastAsync(string serverIdentifier)
     {  
         var lastEntry = await _statsCollection
             .Find(doc => doc.ServerIdentifier.Equals(serverIdentifier))
             .SortByDescending(doc => doc.Timestamp)
             .FirstOrDefaultAsync();
 
-
         return new ServerStatistics(
-            lastEntry.MemoryUsage,
-            lastEntry.AvailableMemory,
-            lastEntry.CpuUsage,
-            lastEntry.Timestamp,
-            lastEntry.ServerIdentifier
+            lastEntry?.MemoryUsage??0,
+            lastEntry?.AvailableMemory??0,
+            lastEntry?.CpuUsage??0,
+            lastEntry?.Timestamp?? DateTime.UtcNow,
+            lastEntry?.ServerIdentifier??serverIdentifier
             );
     }
 }
