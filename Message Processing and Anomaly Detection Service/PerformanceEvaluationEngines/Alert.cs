@@ -1,0 +1,3 @@
+namespace Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEngines;
+
+public readonly record struct Alert(string Message);
