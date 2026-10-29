@@ -5,7 +5,9 @@ namespace Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances.Mon
 
 public class ServerStatisticsDocument
 {
-    [BsonId] [BsonRepresentation(BsonType.ObjectId)]
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
     public required String ServerIdentifier { get; set; }
     public double MemoryUsage { get; set; }
     public double AvailableMemory { get; set; }
@@ -16,6 +18,5 @@ public class ServerStatisticsDocument
     {
         
     }
-
-   
+    
 }
