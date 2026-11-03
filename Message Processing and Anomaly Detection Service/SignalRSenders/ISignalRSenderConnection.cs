@@ -2,6 +2,6 @@ namespace Message_Processing_and_Anomaly_Detection_Service.SignalRSenders;
 
 public interface ISignalRSenderConnection
 {
-    public Task StartAsync();
-    public Task SendAsync(string message);
+    Task StartAsync(CancellationToken cancellationToken = default);
+    Task SendAsync(string message, CancellationToken cancellationToken = default);
 }

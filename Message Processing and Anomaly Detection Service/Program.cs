@@ -1,6 +1,6 @@
-﻿using System.Data;
 using Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances;
 using Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances.MongoDbAPIs;
+using Message_Processing_and_Anomaly_Detection_Service.Options;
 using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers;
 using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers.EvaluationConstants;
 using Message_Processing_and_Anomaly_Detection_Service.RabbitMQReceivers;
@@ -8,6 +8,7 @@ using Message_Processing_and_Anomaly_Detection_Service.SignalRSenders;
 using Message_Processing_and_Anomaly_Detection_Service.SignalRSenders.SignalRConnectionInfo;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using RabbitMQ.Client;
 
@@ -18,35 +19,39 @@ class Program
     static async Task Main(string[] args)
     {
         var connectionString = new MongoEnvironmentVariablesData().ConnectionString;
-        var host = Host.CreateDefaultBuilder(args) .ConfigureServices((context, services) =>
-        {
-            services.AddSingleton<IRabbitMQReceiver, RabbitMQReceiver>();
-            services.AddSingleton<IConnection>(sp =>
+        var host = Host.CreateDefaultBuilder(args)
+            .ConfigureServices((context, services) =>
             {
-                var factory = new ConnectionFactory
+                services.AddOptions<RabbitMQOptions>()
+                    .Bind(context.Configuration.GetSection("RabbitMQ"))
+                    .Validate(options => options.BufferCapacity > 0, "RabbitMQ buffer capacity must be positive.")
+                    .Validate(options => options.PrefetchCount > 0, "RabbitMQ prefetch count must be positive.")
+                    .ValidateOnStart();
+                services.AddSingleton<IConnectionFactory>(sp =>
                 {
-                    HostName = Environment.GetEnvironmentVariable("RABBITMQ__HOSTNAME") ?? "localhost",
-                    Port = int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ__PORT"), out var port)
-                        ? port
-                        : 5672,
-                    UserName = Environment.GetEnvironmentVariable("RABBITMQ__USERNAME") ?? "guest",
-                    Password = Environment.GetEnvironmentVariable("RABBITMQ__PASSWORD") ?? "guest"
-                };
+                    var options = sp.GetRequiredService<IOptions<RabbitMQOptions>>().Value;
+                    return new ConnectionFactory
+                    {
+                        HostName = options.HostName,
+                        Port = options.Port,
+                        UserName = options.UserName,
+                        Password = options.Password,
+                        AutomaticRecoveryEnabled = true,
+                        TopologyRecoveryEnabled = true
+                    };
+                });
+                services.AddSingleton<IRabbitMQReceiver, RabbitMQReceiver>();
+                services.AddSingleton<IMongoConnectionData, MongoEnvironmentVariablesData>();
+                services.AddSingleton<IMongoClient>(sp => new MongoClient(connectionString));
+                services.AddSingleton<IDatabase, MongoDbInstance>();
+                services.AddSingleton<IEvaluationConstantsGetter, EvaluationConstantsGetterFromEnvironmentVariables>();
+                services.AddSingleton<IPerformanceEvaluationEnginesManager, PerformanceEvaluationEnginesManager>();
+                services.AddSingleton<IHubConnectionInfo, HubConnectionInfoFromEnvironmentVariables>();
+                services.AddSingleton<ISignalRSenderConnection, SignalRSenderConnection>();
+                services.AddHostedService<ServiceLoop>();
+            })
+            .Build();
 
-                return factory.CreateConnectionAsync().GetAwaiter().GetResult();
-            });
-            services.AddSingleton<IMongoConnectionData, MongoEnvironmentVariablesData>();
-            services.AddSingleton<IMongoClient>(sp => new MongoClient(connectionString));
-            services.AddSingleton<IDatabase,MongoDbInstance>();
-            services.AddSingleton<IEvaluationConstantsGetter, EvaluationConstantsGetterFromEnvironmentVariables>();
-            services.AddSingleton<IPerformanceEvaluationEnginesManager,PerformanceEvaluationEnginesManager>();
-            services.AddSingleton<IHubConnectionInfo, HubConnectionInfoFromEnvironmentVariables>();
-            services.AddSingleton<ISignalRSenderConnection, SignalRSenderConnection>();
-            services.AddSingleton<ServiceLoop>(); 
-        }) .Build();
-
-         
-        var service = host.Services.GetRequiredService<ServiceLoop>();
-        await service.StartService();
+        await host.RunAsync();
     }
 }

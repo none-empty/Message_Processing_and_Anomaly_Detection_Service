@@ -1,72 +1,153 @@
 using System.Text;
-using System.Text.Json;
 using System.Threading.Channels;
+using Message_Processing_and_Anomaly_Detection_Service.Options;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace Message_Processing_and_Anomaly_Detection_Service.RabbitMQReceivers;
 
-public class RabbitMQReceiver : IRabbitMQReceiver, IAsyncDisposable
+public class RabbitMQReceiver : IRabbitMQReceiver
 {
-    private readonly IConnection _connection;
-    private IChannel _channel;
-    private readonly Channel<string> _messageBuffer;
     private const string QueueName = "server_statistics_queue";
-    public RabbitMQReceiver(IConnection connection)
-    {
-        this._connection = connection;
+    private readonly IConnectionFactory _connectionFactory;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly Channel<string> _messageBuffer;
+    private readonly ushort _prefetchCount;
+    private IConnection? _connection;
+    private IChannel? _channel;
+    private bool _started;
+    private bool _disposed;
 
-        _messageBuffer = Channel.CreateUnbounded<string>(
-            new UnboundedChannelOptions
+    public RabbitMQReceiver(IConnectionFactory connectionFactory, IOptions<RabbitMQOptions> options)
+    {
+        _connectionFactory = connectionFactory;
+        _prefetchCount = options.Value.PrefetchCount;
+        _messageBuffer = Channel.CreateBounded<string>(
+            new BoundedChannelOptions(options.Value.BufferCapacity)
             {
                 SingleReader = true,
-                SingleWriter = true
+                SingleWriter = true,
+                FullMode = BoundedChannelFullMode.Wait
             });
-       
     }
 
-    public async Task StartAsync()
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        _channel = await _connection.CreateChannelAsync();
-
-        await _channel.QueueDeclareAsync(
-            queue: QueueName,
-            durable: false,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null);
-
-        var consumer = new AsyncEventingBasicConsumer(_channel);
-
-        consumer.ReceivedAsync += async (sender, eventArgs) =>
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
         {
-            var message = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_started)
+            {
+                return;
+            }
 
-            await _messageBuffer.Writer.WriteAsync(message);
+            _connection ??= await _connectionFactory.CreateConnectionAsync(cancellationToken);
+            var channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
+            try
+            {
+                await channel.QueueDeclareAsync(
+                    queue: QueueName,
+                    durable: false,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null,
+                    cancellationToken: cancellationToken);
 
-            await _channel.BasicAckAsync(eventArgs.DeliveryTag, false);
-        };
+                await channel.BasicQosAsync(
+                    prefetchSize: 0,
+                    prefetchCount: _prefetchCount,
+                    global: false,
+                    cancellationToken: cancellationToken);
 
-        await _channel.BasicConsumeAsync(
-            queue: QueueName,
-            autoAck: false,
-            consumer: consumer);
+                var shutdownToken = _shutdown.Token;
+                var consumer = new AsyncEventingBasicConsumer(channel);
+                consumer.ReceivedAsync += async (_, eventArgs) =>
+                {
+                    // Copy the body before the callback returns and the client's memory is released.
+                    var message = Encoding.UTF8.GetString(eventArgs.Body.Span);
+                    using var deliveryCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                        shutdownToken, eventArgs.CancellationToken);
+                    var deliveryToken = deliveryCancellation.Token;
+                    try
+                    {
+                        await _messageBuffer.Writer.WriteAsync(message, deliveryToken);
+
+                        // Receipt means acceptance into our buffer, independently of later processing.
+                        await channel.BasicAckAsync(eventArgs.DeliveryTag, false, deliveryToken);
+                    }
+                    catch (OperationCanceledException) when (deliveryToken.IsCancellationRequested)
+                    {
+                        // Unacknowledged deliveries are returned to RabbitMQ when the channel closes.
+                    }
+                };
+
+                await channel.BasicConsumeAsync(
+                    queue: QueueName,
+                    autoAck: false,
+                    consumer: consumer,
+                    cancellationToken: cancellationToken);
+
+                _channel = channel;
+                _started = true;
+            }
+            catch
+            {
+                await channel.DisposeAsync();
+                throw;
+            }
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
     }
-    
-    public async Task<string> ReceivePayloadAsync()
-    {
-        return await _messageBuffer.Reader.ReadAsync();
-    }
 
-    public void Dispose()
+    public async Task<string> ReceivePayloadAsync(CancellationToken cancellationToken = default)
     {
-        _connection.Dispose();
-        _channel.Dispose();
+        return await _messageBuffer.Reader.ReadAsync(cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _connection.DisposeAsync();
-        await _channel.DisposeAsync();
+        await _lifecycleLock.WaitAsync();
+        try
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            await _shutdown.CancelAsync();
+            try
+            {
+                if (_channel is not null)
+                {
+                    await _channel.DisposeAsync();
+                }
+            }
+            finally
+            {
+                try
+                {
+                    if (_connection is not null)
+                    {
+                        await _connection.DisposeAsync();
+                    }
+                }
+                finally
+                {
+                    _messageBuffer.Writer.TryComplete();
+                    _shutdown.Dispose();
+                }
+            }
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
     }
 }
