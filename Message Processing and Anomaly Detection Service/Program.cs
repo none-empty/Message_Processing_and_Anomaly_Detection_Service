@@ -18,7 +18,6 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        var connectionString = new MongoEnvironmentVariablesData().ConnectionString;
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureServices((context, services) =>
             {
@@ -41,12 +40,15 @@ class Program
                     };
                 });
                 services.AddSingleton<IRabbitMQReceiver, RabbitMQReceiver>();
-                services.AddSingleton<IMongoConnectionData, MongoEnvironmentVariablesData>();
-                services.AddSingleton<IMongoClient>(sp => new MongoClient(connectionString));
+                services.AddOptions<MongoConnectionData>()
+                    .Bind(context.Configuration.GetSection("MongoDB"));
+                services.AddSingleton<IMongoClient>(sp =>
+                    new MongoClient(sp.GetRequiredService<IOptions<MongoConnectionData>>().Value.ConnectionString));
                 services.AddSingleton<IDatabase, MongoDbInstance>();
                 services.AddSingleton<IEvaluationConstantsGetter, EvaluationConstantsGetterFromEnvironmentVariables>();
                 services.AddSingleton<IPerformanceEvaluationEnginesManager, PerformanceEvaluationEnginesManager>();
-                services.AddSingleton<IHubConnectionInfo, HubConnectionInfoFromEnvironmentVariables>();
+                services.AddOptions<HubConnectionInfo>()
+                    .Bind(context.Configuration.GetSection("SignalR"));
                 services.AddSingleton<ISignalRSenderConnection, SignalRSenderConnection>();
                 services.AddHostedService<ServiceLoop>();
             })

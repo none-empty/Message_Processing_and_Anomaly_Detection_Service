@@ -1,5 +1,6 @@
 using Message_Processing_and_Anomaly_Detection_Service.SignalRSenders.SignalRConnectionInfo;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Options;
 
 namespace Message_Processing_and_Anomaly_Detection_Service.SignalRSenders;
 
@@ -8,8 +9,9 @@ public class SignalRSenderConnection : ISignalRSenderConnection, IAsyncDisposabl
     private readonly HubConnection _connection;
     private readonly string _remoteProcedureName;
 
-    public SignalRSenderConnection(IHubConnectionInfo connectionInfo)
+    public SignalRSenderConnection(IOptions<HubConnectionInfo> options)
     {
+        var connectionInfo = options.Value;
         _connection = new HubConnectionBuilder()
             .WithUrl(connectionInfo.Url)
             .WithAutomaticReconnect()

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances.MongoDbAPIs;
@@ -6,8 +7,9 @@ public class MongoDbInstance : IDatabase
 {
     private readonly IMongoCollection<ServerStatisticsDocument> _statsCollection;
      
-    public MongoDbInstance(IMongoConnectionData mongoConnectionData,IMongoClient mongoClient)
+    public MongoDbInstance(IOptions<MongoConnectionData> options, IMongoClient mongoClient)
     {
+        var mongoConnectionData = options.Value;
         var database = mongoClient.GetDatabase(mongoConnectionData.DataBaseName);
         _statsCollection = database.GetCollection<ServerStatisticsDocument>(mongoConnectionData.CollectionName);
     }
