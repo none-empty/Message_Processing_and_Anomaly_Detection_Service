@@ -50,7 +50,7 @@ public class RabbitMQReceiver : IRabbitMQReceiver
             {
                 await channel.QueueDeclareAsync(
                     queue: QueueName,
-                    durable: false,
+                    durable: true,
                     exclusive: false,
                     autoDelete: false,
                     arguments: null,
