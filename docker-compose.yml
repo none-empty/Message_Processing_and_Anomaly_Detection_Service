@@ -1,0 +1,66 @@
+services:
+  mongodb:
+    image: mongo:8.0
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand('ping').ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  datahub:
+    build:
+      context: .
+      dockerfile: DataHub/Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+    ports:
+      - "${DATAHUB_PORT:-5198}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  processor:
+    build:
+      context: .
+      dockerfile: Message Processing and Anomaly Detection Service/Dockerfile
+    restart: unless-stopped
+    networks:
+      - default
+      - messaging
+    environment:
+      MongoDB__ConnectionString: ${MongoDB__ConnectionString:-mongodb://mongodb:27017}
+      MongoDB__DataBaseName: ${MongoDB__DataBaseName:-server_statistics}
+      MongoDB__CollectionName: ${MongoDB__CollectionName:-statistics}
+      SignalR__Url: ${SignalR__Url:-http://datahub:8080/alerts}
+      SignalR__RemoteProcedureName: ${SignalR__RemoteProcedureName:-SendAlert}
+      RabbitMQ__HostName: ${RabbitMQ__HostName:-rabbitmq}
+      RabbitMQ__Port: ${RabbitMQ__Port:-5672}
+      RabbitMQ__UserName: ${RabbitMQ__UserName:-guest}
+      RabbitMQ__Password: ${RabbitMQ__Password:-guest}
+      RabbitMQ__BufferCapacity: ${RabbitMQ__BufferCapacity:-256}
+      RabbitMQ__PrefetchCount: ${RabbitMQ__PrefetchCount:-32}
+      MemoryUsageAnomalyThresholdPercentage: ${MemoryUsageAnomalyThresholdPercentage:-0}
+      MemoryUsageThresholdPercentage: ${MemoryUsageThresholdPercentage:-0}
+      CpuUsageAnomalyThresholdPercentage: ${CpuUsageAnomalyThresholdPercentage:-0}
+      CpuUsageThresholdPercentage: ${CpuUsageThresholdPercentage:-0}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      datahub:
+        condition: service_healthy
+
+volumes:
+  mongodb_data:
+
+networks:
+  messaging:
+    external: true
+    name: ${RABBITMQ_NETWORK:-serverstatisticscollectionservice_messaging}
