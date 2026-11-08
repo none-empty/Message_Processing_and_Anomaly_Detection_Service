@@ -1,4 +1,4 @@
-using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers.EvaluationConstants;
+using Message_Processing_and_Anomaly_Detection_Service.Options;
 
 namespace Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEngines;
 
@@ -6,17 +6,17 @@ public class MemoryPerformanceEvaluationEngine : IPerformanceEvaluationEngine
 {
  
     public List<Alert> EvaluatePerformance(ServerStatistics currentStat, ServerStatistics prevStat,
-        IEvaluationConstantsGetter evaluationConstants)
+        EvaluationParameters evaluationParameters)
     {
         var res = new List<Alert>();
         
         var (issueDetected, alert) = CheckForMemoryUsageAnomaly(currentStat, prevStat
-            , evaluationConstants.MemoryUsageAnomalyThresholdPercentage);
+            , evaluationParameters.MemoryUsageAnomalyThresholdPercentage);
         
         if(issueDetected)res.Add(alert);
 
         (issueDetected, alert) = CheckForMemoryHighUsage(currentStat, 
-            evaluationConstants.MemoryUsageThresholdPercentage);
+            evaluationParameters.MemoryUsageThresholdPercentage);
         
         if(issueDetected)res.Add(alert);
         

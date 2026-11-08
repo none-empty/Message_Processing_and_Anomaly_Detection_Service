@@ -1,19 +1,20 @@
 using System.Reflection;
+using Message_Processing_and_Anomaly_Detection_Service.Options;
 using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEngines;
-using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers.EvaluationConstants;
+using Microsoft.Extensions.Options;
 
 namespace Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers;
 
 public class PerformanceEvaluationEnginesManager : IPerformanceEvaluationEnginesManager
 {
     private readonly List<IPerformanceEvaluationEngine> _engines;
-    private readonly IEvaluationConstantsGetter _evaluationConstants;
+    private readonly EvaluationParameters _evaluationParameters;
         
-    public PerformanceEvaluationEnginesManager(IEvaluationConstantsGetter evaluationConstants)
+    public PerformanceEvaluationEnginesManager(IOptions<EvaluationParameters> options)
     {
         var types = GetEnginesTypes();
         _engines = CreateEngines(types);
-        _evaluationConstants = evaluationConstants;
+        _evaluationParameters = options.Value;
     }
 
     private List<Type> GetEnginesTypes()
@@ -37,7 +38,7 @@ public class PerformanceEvaluationEnginesManager : IPerformanceEvaluationEngines
     public List<Alert> ExecuteEnginesRules(ServerStatistics currentStats,ServerStatistics prevStats)
     {
         var alerts = _engines
-            .SelectMany(engine => engine.EvaluatePerformance(currentStats,prevStats,_evaluationConstants))
+            .SelectMany(engine => engine.EvaluatePerformance(currentStats,prevStats,_evaluationParameters))
             .ToList();
 
         return alerts;

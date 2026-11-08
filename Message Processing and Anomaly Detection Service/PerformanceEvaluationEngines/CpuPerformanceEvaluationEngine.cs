@@ -1,20 +1,20 @@
-using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers.EvaluationConstants;
+using Message_Processing_and_Anomaly_Detection_Service.Options;
 
 namespace Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEngines;
 
 public class CpuPerformanceEvaluationEngine : IPerformanceEvaluationEngine
 {
     public List<Alert> EvaluatePerformance(ServerStatistics currentStat, ServerStatistics prevStat,
-        IEvaluationConstantsGetter evaluationConstants)
+        EvaluationParameters evaluationParameters)
     {
         var res = new List<Alert>();
         
         var (issueDetected, alert) = CheckForCpuUsageAnomaly(currentStat, prevStat
-            , evaluationConstants.CpuUsageAnomalyThresholdPercentage);
+            , evaluationParameters.CpuUsageAnomalyThresholdPercentage);
         
         if(issueDetected)res.Add(alert);
 
-        (issueDetected, alert) = CheckForCpuHighUsage(currentStat, evaluationConstants.CpuUsageThresholdPercentage);
+        (issueDetected, alert) = CheckForCpuHighUsage(currentStat, evaluationParameters.CpuUsageThresholdPercentage);
         
         if(issueDetected)res.Add(alert);
         

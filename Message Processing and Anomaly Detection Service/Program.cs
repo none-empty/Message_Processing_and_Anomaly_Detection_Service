@@ -2,7 +2,6 @@ using Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances;
 using Message_Processing_and_Anomaly_Detection_Service.DatabaseInstances.MongoDbAPIs;
 using Message_Processing_and_Anomaly_Detection_Service.Options;
 using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers;
-using Message_Processing_and_Anomaly_Detection_Service.PerformanceEvaluationEnginesManagers.EvaluationConstants;
 using Message_Processing_and_Anomaly_Detection_Service.RabbitMQReceivers;
 using Message_Processing_and_Anomaly_Detection_Service.SignalRSenders;
 using Message_Processing_and_Anomaly_Detection_Service.SignalRSenders.SignalRConnectionInfo;
@@ -45,7 +44,8 @@ class Program
                 services.AddSingleton<IMongoClient>(sp =>
                     new MongoClient(sp.GetRequiredService<IOptions<MongoConnectionData>>().Value.ConnectionString));
                 services.AddSingleton<IDatabase, MongoDbInstance>();
-                services.AddSingleton<IEvaluationConstantsGetter, EvaluationConstantsGetterFromEnvironmentVariables>();
+                services.AddOptions<EvaluationParameters>()
+                    .Bind(context.Configuration);
                 services.AddSingleton<IPerformanceEvaluationEnginesManager, PerformanceEvaluationEnginesManager>();
                 services.AddOptions<HubConnectionInfo>()
                     .Bind(context.Configuration.GetSection("SignalR"));
